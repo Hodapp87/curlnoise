@@ -1,12 +1,12 @@
 (ns curlnoise.core
-  (:require [quil.core :as q]
+  (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]))
 
 (def framerate 30)
 (def res-x 800)
 (def res-y res-x)
 ;; Lower grid size produces more points
-(def grid-size 25)
+(def grid-size 50)
 ;; Lower alpha produces *longer* particle trails
 (def alpha 10)
 
@@ -131,6 +131,7 @@
 (defn draw-state [state]
   ;;(q/background 255)
   (q/fill 255 255 255 alpha)
+  (q/translate (- (/ res-x 2)) (- (/ res-y 2)))
   (q/rect 0 0 (q/width) (q/height))
   (q/stroke 0)
   (q/stroke-weight 3)
@@ -148,35 +149,16 @@
     ;;(q/update-pixels)
     ))
 
-(defn update-state-circles [state]
-  (update state :frame inc))
-
-(defn draw-state-circles [state]
-  (q/background 240)
-  (q/fill 0 0 0)
-  (doseq [point (:grid state)]
-    (let [[i j px py] point
-          z (/ (:frame state) 50.0)
-          x (/ i 10.0)
-          y (/ j 10.0)
-          rad (int (* (q/noise x y z) grid-size))]
-      (q/ellipse px py rad rad))))
-
-(q/defsketch curlnoise
-  :title "Curl Noise"
-  :size [res-x res-y]
-  :setup setup
-  :update update-state
-  :draw draw-state
-  :features [:keep-on-top]
-  :middleware [m/fun-mode m/pause-on-error])
-
-(defn -main [& args]
-  (q/sketch
-  :title "Curl Noise"
-  :size [res-x res-y]
-  :setup setup
-  :update update-state
-  :draw draw-state
-  :features []
-  :middleware [m/fun-mode]))
+(defn ^:export run-sketch []
+  (q/defsketch curlnoise
+    :title "Curl Noise"
+    :host "curlnoise"
+    :size [res-x res-y]
+    :renderer :p3d
+    :setup setup
+    :update update-state
+    :draw draw-state
+    :features [:keep-on-top]
+    :middleware [m/fun-mode
+                 ;;m/pause-on-error
+                 ]))
