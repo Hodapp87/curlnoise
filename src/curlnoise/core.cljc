@@ -3,10 +3,10 @@
             [quil.middleware :as m]))
 
 (def framerate 30)
-(def res-x 800)
+(def res-x 500)
 (def res-y res-x)
 ;; Lower grid size produces more points
-(def grid-size 50)
+(def grid-size 20)
 ;; Lower alpha produces *longer* particle trails
 (def alpha 10)
 
@@ -99,10 +99,8 @@
         ;; potential modulation function - takes (x,y):
         amp-fn #(ramp (min (/ (d-mouse %1 %2) d0)
                            (/ (d-border %1 %2) d0)))
-        ;;amp-fn (fn [x y] 1.0)
         ;; Noise function - must take 3 arguments, (x,y,z):
         n-fn #(* noise-scale (q/noise (* f-inv %1) (* f-inv %2) (* f-inv %3)))
-        ;;n-fn (fn [x y z] (* x f-inv))
         ;; Overall amplitude function:
         p-fn #(* vf (amp-fn %1 %2) (n-fn %1 %2 %3))
         points
@@ -129,12 +127,12 @@
         (assoc :grid points))))
 
 (defn draw-state [state]
-  ;;(q/background 255)
-  (q/fill 255 255 255 alpha)
-  (q/translate (- (/ res-x 2)) (- (/ res-y 2)))
-  (q/rect 0 0 (q/width) (q/height))
+  (q/background 255)
+  ;;(q/fill 255 255 255 alpha)
+  #?(:cljs (q/translate (- (/ res-x 2)) (- (/ res-y 2))))
+  ;;(q/rect 0 0 (q/width) (q/height))
   (q/stroke 0)
-  (q/stroke-weight 3)
+  (q/stroke-weight 5)
   (let [pix (q/pixels)
         w (q/width)
         color (+ 255 (* 256 255) (* 256 256 255))
@@ -142,6 +140,7 @@
     (doseq [point (:grid state)]
       (let [[i j px py] point
             ;;pix (q/pixels)
+            ;; TODO: What am I doing wrong with accessing 'pix'?
             ]
         ;;(aset-int pix (+ px (* py w)) color)
         (q/point px py)
@@ -154,11 +153,17 @@
     :title "Curl Noise"
     :host "curlnoise"
     :size [res-x res-y]
-    :renderer :p3d
+    :renderer #?(:clj  :java2d
+                 :cljs :p3d)
+    ;; TODO: Figure out my own test setup issues with p3d
     :setup setup
     :update update-state
     :draw draw-state
     :features [:keep-on-top]
-    :middleware [m/fun-mode
-                 ;;m/pause-on-error
-                 ]))
+    :middleware #?(:clj  [m/fun-mode m/pause-on-error]
+                   :cljs [m/fun-mode])
+    ))
+;; TODO: Should I run with q/sketch rather than q/defsketch?
+
+(defn -main [& args]
+  (run-sketch))
