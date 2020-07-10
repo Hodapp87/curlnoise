@@ -8,7 +8,11 @@
 ;; Lower grid size produces more points
 (def grid-size 20)
 ;; Lower alpha produces *longer* particle trails
-(def alpha 10)
+(def alpha 20)
+
+(def renderer #?(:clj  :java2d
+                 :cljs :p3d))
+;; TODO: Figure out my own test setup issues with p3d
 
 ;; Return sequence of [x y], with 
 (defn grid [nx ny]
@@ -61,9 +65,11 @@
 (defn setup []
   (q/background 255)
   (q/frame-rate framerate)
-  {:frame 0
-   :grid (pix-grid grid-size res-x res-y)
-   })
+  (let [gr (q/create-graphics res-x res-y)]
+    (q/with-graphics gr (q/background 255 alpha))
+    {:frame 0
+     :grid (pix-grid grid-size res-x res-y)
+     :blend gr}))
 
 (defn update-state [state]
   (let [w (q/width)
@@ -127,10 +133,9 @@
         (assoc :grid points))))
 
 (defn draw-state [state]
-  (q/background 255)
-  ;;(q/fill 255 255 255 alpha)
   #?(:cljs (q/translate (- (/ res-x 2)) (- (/ res-y 2))))
-  ;;(q/rect 0 0 (q/width) (q/height))
+  ;; TODO: Is this a p3d thing?
+  (q/image (:blend state) 0 0)
   (q/stroke 0)
   (q/stroke-weight 5)
   (let [pix (q/pixels)
@@ -153,9 +158,7 @@
     :title "Curl Noise"
     :host "curlnoise"
     :size [res-x res-y]
-    :renderer #?(:clj  :java2d
-                 :cljs :p3d)
-    ;; TODO: Figure out my own test setup issues with p3d
+    :renderer renderer
     :setup setup
     :update update-state
     :draw draw-state
