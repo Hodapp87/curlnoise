@@ -2,7 +2,7 @@
   (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]))
 
-(def framerate 30)
+(def framerate 60)
 (def res-x 500)
 (def res-y res-x)
 ;; Lower grid size produces more points
@@ -11,8 +11,9 @@
 (def alpha 20)
 
 (def renderer #?(:clj  :java2d
-                 :cljs :p3d))
-;; TODO: Figure out my own test setup issues with p3d
+                 :cljs :p2d))
+;; TODO: I still must add xorg.libXxf86vm and prepend to 'lein run':
+;; LD_LIBRARY_PATH=/nix/store/695kqk35hndbcn2p6crcd8062p13j2a6-libXxf86vm-1.1.4/lib
 
 ;; Return sequence of [x y], with 
 (defn grid [nx ny]
@@ -62,14 +63,28 @@
 (defn dist [x y]
   (Math/sqrt (dist2 x y)))
 
+(defn clamp [v v0 v1]
+  (cond (< v v0) v0
+        (> v v1) v1
+        :else    v))
+
 (defn setup []
   (q/background 255)
   (q/frame-rate framerate)
   (let [gr (q/create-graphics res-x res-y)]
-    (q/with-graphics gr (q/background 255 alpha))
+    (q/with-graphics gr
+      (q/background 255 alpha))
     {:frame 0
      :grid (pix-grid grid-size res-x res-y)
      :blend gr}))
+
+(defn sdf-box [px py bx by]
+  (let [bx2 (* 0.5 bx)
+        by2 (* 0.5 by)
+        dx (- (Math/abs (- px bx2)) bx2)
+        dy (- (Math/abs (- py by2)) by2)
+        l  (+ (dist (max 0.0 dx) (max 0.0 dy)) (min (max dx dy) 0.0))]
+    l))
 
 (defn update-state [state]
   (let [w (q/width)
@@ -96,12 +111,13 @@
                    1e6 ;; arbitrarily large value
                    )
         ;; function for distance to the border:
-        d-border (fn [x y]
-                   (min
-                    (- x margin)
-                    (- y margin)
-                    (- (- w margin) x)
-                    (- (- h margin) y)))
+        ;; d-border (fn [x y]
+        ;;            (min
+        ;;             (- x margin)
+        ;;             (- y margin)
+        ;;             (- (- w margin) x)
+        ;;             (- (- h margin) y)))
+        d-border (fn [x y] (- 50 (sdf-box x y w h)))
         ;; potential modulation function - takes (x,y):
         amp-fn #(ramp (min (/ (d-mouse %1 %2) d0)
                            (/ (d-border %1 %2) d0)))
@@ -132,26 +148,65 @@
         (update :frame inc)
         (assoc :grid points))))
 
+(def show-fn false)
+
+(defn draw-field [offset sdf]
+  (let [pix (q/pixels)
+        w   (q/width)
+        h   (q/height)
+        ]
+    (doseq [point (grid (q/width) (q/height))]
+      (let [[px py] point
+            px2     (- (* px 1.5) 50)
+            py2     (- (* py 1.5) 50)
+            ;; TODO: Factor this out somehow (what's a good way to
+            ;; factor out domain transformations?)
+            w2      w
+            h2      h
+            d       (sdf px2 py2)
+            step    (/ (mod d offset) offset)
+            val     (int (* step 255))
+            [r g b] (if (>= (Math/abs d) (* offset 0.5))
+                      [val val val]
+                      [val 0.0 0.0])]
+        #?(:clj  (aset-int pix (+ px (* py w)) (q/color r g b))
+           :cljs (let [offset (* 4 (+ px (* py w)))]
+                   (aset pix offset       r)
+                   (aset pix (+ offset 1) g)
+                   (aset pix (+ offset 2) b)
+                   (aset pix (+ offset 3) 255) ;; alpha
+                   ))
+        ))
+    (q/update-pixels)))
+
 (defn draw-state [state]
-  #?(:cljs (q/translate (- (/ res-x 2)) (- (/ res-y 2))))
-  ;; TODO: Is this a p3d thing?
+  ;;#?(:cljs (q/translate (- (/ res-x 2)) (- (/ res-y 2))))
+  ;; TODO: Is this a p3d thing or a cljs thing?
+  
   (q/image (:blend state) 0 0)
-  (q/stroke 0)
-  (q/stroke-weight 5)
   (let [pix (q/pixels)
         w (q/width)
-        color (+ 255 (* 256 255) (* 256 256 255))
+        h (q/height)
+        color (q/color 0)
         ]
-    (doseq [point (:grid state)]
-      (let [[i j px py] point
-            ;;pix (q/pixels)
-            ;; TODO: What am I doing wrong with accessing 'pix'?
-            ]
-        ;;(aset-int pix (+ px (* py w)) color)
-        (q/point px py)
-        ))
-    ;;(q/update-pixels)
-    ))
+    (if show-fn
+      (draw-field 10.0 #(- 40.0 (sdf-box %1 %2 (q/width) (q/height))))
+      (doseq [point (:grid state)]
+        (let [[_ _ px py] point
+              ix (clamp (int px) 0 (- w 1))
+              iy (clamp (int py) 0 (- h 1))]
+          #?(:clj  (aset-int pix (+ ix (* iy w)) color)
+             :cljs (let [offset (* 4 (+ ix (* iy w)))]
+                     (aset pix offset 0) ;; R
+                     (aset pix (+ offset 1) 0) ;; G
+                     (aset pix (+ offset 2) 0) ;; B
+                     (aset pix (+ offset 3) 255) ;; alpha
+                     )))))
+    (q/update-pixels)))
+
+(defn settings []
+  ;; https://github.com/quil/quil/issues/299
+  (q/pixel-density 1))
 
 (defn ^:export run-sketch []
   (q/defsketch curlnoise
@@ -160,6 +215,7 @@
     :size [res-x res-y]
     :renderer renderer
     :setup setup
+    :settings settings
     :update update-state
     :draw draw-state
     :features [:keep-on-top]
@@ -170,3 +226,7 @@
 
 (defn -main [& args]
   (run-sketch))
+
+;; Just for testing:
+;; (run-sketch)
+
