@@ -6,9 +6,9 @@
 (def res-x 500)
 (def res-y res-x)
 ;; Lower grid size produces more points
-(def grid-size 20)
+(def grid-size 10)
 ;; Lower alpha produces *longer* particle trails
-(def alpha 20)
+(def alpha 40)
 
 (def renderer #?(:clj  :java2d
                  :cljs :p2d))
@@ -90,13 +90,13 @@
   (let [w (q/width)
         h (q/height)
         ;; Overall multiplier for velocity of particle:
-        vf 0.2
+        vf 0.1
         ;; Domain scale for noise function:
         scale 400.0
         ;; Amplitude multiplier for noise:
-        noise-scale (* scale 3.0)
+        noise-scale (* scale 10.0)
         ;; Radius for mouse-thingy:
-        rad 50.0
+        rad 20.0
         ;; Radius for rounded corners:
         rect-rad 100.0
         margin 0
@@ -120,16 +120,26 @@
                               (- h (* rect-rad 2)) ; height
                               ))
         ;; potential modulation function - takes (x,y):
-        amp-fn #(ramp (min (/ (d-mouse %1 %2) d0)
-                           (/ (d-border %1 %2) d0)))
+        amp-fn (fn [_ _] 1.0)
+        ;; #(ramp (min (/ (d-mouse %1 %2) d0)
+        ;;             (/ (d-border %1 %2) d0)
+        ;;             ))
+        mouse-drift #(if (q/mouse-pressed?)
+                       (+ 
+                        (* (- (/ mx w) 0.5) %2 0.01)
+                        (* (- (/ my h) 0.5) %1 -0.01))
+                       0.0)
         ;; Noise function - must take 3 arguments, (x,y,z):
-        n-fn #(* noise-scale (q/noise (* f-inv %1) (* f-inv %2) (* f-inv %3)))
+        n-fn #(* noise-scale
+                 (+
+                  (mouse-drift %1 %2)
+                  (q/noise (* f-inv %1) (* f-inv %2) (* f-inv %3))))
         ;; Overall amplitude function:
         p-fn #(* vf (amp-fn %1 %2) (n-fn %1 %2 %3))
         points
         (map (fn [pt]
                (let [[i j x y] pt
-                     z (/ (:frame state) 50.0)
+                     z (/ (:frame state) 20.0)
                      border (if (and (and (> x margin) (< x (- w margin)))
                                      (and (> y margin) (< x (- h margin))))
                               1.0 0.0)
@@ -142,8 +152,16 @@
                      vy (/ (- n n-dx) eps)
                      ;; Updated point position:
                      x2 (+ x vx)
-                     y2 (+ y vy)]
-                 [i j x2 y2]
+                     y2 (+ y vy)
+                     [x3 y3] (if (or (< x2 0) (> x2 w) (< y2 0) (> y2 h))
+                               [(q/random w) (q/random h)]
+                               [x2 y2])
+                     ;; This boundary behavior is a little more
+                     ;; interesting: when a particle leaves the edges,
+                     ;; it just reappears in a random place.
+                     ]
+                 
+                 [i j x3 y3]
                  )) (:grid state))]
     (-> state
         (update :frame inc)
