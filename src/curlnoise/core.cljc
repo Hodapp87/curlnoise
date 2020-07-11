@@ -95,8 +95,10 @@
         scale 400.0
         ;; Amplitude multiplier for noise:
         noise-scale (* scale 3.0)
-        ;; Radius for mouse-thingy
+        ;; Radius for mouse-thingy:
         rad 50.0
+        ;; Radius for rounded corners:
+        rect-rad 100.0
         margin 0
         eps (* w 1e-3)
         mx (q/mouse-x)
@@ -111,13 +113,12 @@
                    1e6 ;; arbitrarily large value
                    )
         ;; function for distance to the border:
-        ;; d-border (fn [x y]
-        ;;            (min
-        ;;             (- x margin)
-        ;;             (- y margin)
-        ;;             (- (- w margin) x)
-        ;;             (- (- h margin) y)))
-        d-border (fn [x y] (- 50 (sdf-box x y w h)))
+        d-border #(- rect-rad
+                     (sdf-box (- %1 rect-rad) ; x
+                              (- %2 rect-rad) ; y
+                              (- w (* rect-rad 2)) ; width
+                              (- h (* rect-rad 2)) ; height
+                              ))
         ;; potential modulation function - takes (x,y):
         amp-fn #(ramp (min (/ (d-mouse %1 %2) d0)
                            (/ (d-border %1 %2) d0)))
@@ -150,17 +151,14 @@
 
 (def show-fn false)
 
-(defn draw-field [offset sdf]
+(defn draw-field [offset sdf domain-xform]
   (let [pix (q/pixels)
         w   (q/width)
         h   (q/height)
         ]
     (doseq [point (grid (q/width) (q/height))]
       (let [[px py] point
-            px2     (- (* px 1.5) 50)
-            py2     (- (* py 1.5) 50)
-            ;; TODO: Factor this out somehow (what's a good way to
-            ;; factor out domain transformations?)
+            [px2 py2] (domain-xform px py)
             w2      w
             h2      h
             d       (sdf px2 py2)
@@ -188,9 +186,15 @@
         w (q/width)
         h (q/height)
         color (q/color 0)
+        rad 50
         ]
     (if show-fn
-      (draw-field 10.0 #(- 40.0 (sdf-box %1 %2 (q/width) (q/height))))
+      (draw-field
+       10.0
+       #(- rad (sdf-box %1 %2 (- (q/width) (* rad 2)) (- (q/height) (* rad 2))))
+       #(vec [(- (- %1 rad) 0.0)
+              (- (- %2 rad) 0.0)])
+       )
       (doseq [point (:grid state)]
         (let [[_ _ px py] point
               ix (clamp (int px) 0 (- w 1))
