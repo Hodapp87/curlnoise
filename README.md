@@ -18,6 +18,12 @@ Uncomment the `(run-sketch)` and the below should work:
 - Emacs - run cider, open `core.clj` and press `C-c C-k` to evaluate the file.
 - REPL - run `(require 'quil_perlin.core)`.
 
+## Demo
+
+See
+[here](https://cdn.jsdelivr.net/gh/hodapp87/curlnoise@master/resources/public/index.html)
+to run the ClojureScript version in the browser.
+
 ## TODO
 
 - Better docs.
