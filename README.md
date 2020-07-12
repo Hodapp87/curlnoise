@@ -33,7 +33,9 @@ to run the ClojureScript version in the browser.
 - Make things more interactive, e.g. let the user place obstacles.
 - Visualize amplitude function & potential function.  I have
   `draw-field` which `show-fn` enables, but it is rudimentary.
-- Use 'real' simplex or OpenSimplex noise implementation that has a
-  gradient instead of doing it numerically.
 - Add multi-octave noise and look into what the paper says about
-  turbulence.  (Look up 'advection' technique it mentions too.)
+  turbulence.  (Look up 'advection' technique [it mentions
+  too](http://www-evasion.imag.fr/Publications/2001/PN01/).)
+- Use 'real' simplex or OpenSimplex noise implementation that has a
+  gradient instead of doing it numerically.  (If I understand Perlin &
+  Neyret's pseudo-advection right, it might also simplify that.)

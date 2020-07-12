@@ -26,13 +26,16 @@
                    (* (Math/pow r 3) c3)
                    (* (Math/pow r 5) c5)))))
 
-(defn dist2 [x y]
+(defn magn2 [x y]
+  "Returns squared magnitude of (x,y), i.e. squared distance to origin."
   (+ (* x x) (* y y)))
 
-(defn dist [x y]
-  (Math/sqrt (dist2 x y)))
+(defn magn [x y]
+  "Returns magnitude of (x,y), i.e. distance to origin."
+  (Math/sqrt (magn2 x y)))
 
 (defn clamp [v v0 v1]
+  "Returns value 'v', clamped into the range [v0,v1]."
   (cond (< v v0) v0
         (> v v1) v1
         :else    v))
@@ -48,14 +51,20 @@
                  (range particles))
      :blend gr}))
 
-(defn sdf-box [px py bx by]
-  (let [bx2 (* 0.5 bx)
-        by2 (* 0.5 by)
-        dx (- (Math/abs (- px bx2)) bx2)
-        dy (- (Math/abs (- py by2)) by2)
-        l  (+ (dist (max 0.0 dx) (max 0.0 dy)) (min (max dx dy) 0.0))]
-    l))
+(defn sdf-box [x y bw bh]
+  "Signed distance function for a box of dimensions (bw, bh).
 
+  That is, this returns the signed distance from (x, y) to a box
+  whose minimum coordinates are (0,0), and whose max coordinates
+  are (bw, bh).  If the point is *inside* the box, the value is
+  negative; if outside, it is positive.
+  "
+  (let [bw2 (* 0.5 bw)
+        bh2 (* 0.5 bh)
+        dx  (- (Math/abs (- x bw2)) bw2)
+        dy  (- (Math/abs (- y bh2)) bh2)
+        l   (+ (magn (max 0.0 dx) (max 0.0 dy)) (min (max dx dy) 0.0))]
+    l))
 
 ;; Domain scale for noise function:
 (def scale 500.0)
@@ -95,35 +104,42 @@
         grad-y (* (- p-dy p) eps-inv)]
     [grad-x grad-y]))
 
+;; TODO
 (defn move-point [x y]
   "Move a particle by the potential at a point.
 
   Returns [x y] of the 'updated' point."
   )
 
+;; Overall multiplier for velocity of particle:
+(def vf 0.1)
+;; Radius for mouse-whorl-thingy:
+(def mouse-rad 20.0)
+;; How strongly the mouse position influences drift:
+(def mouse-strength 20.0)
+;; Radius for rounded corners:
+(def rect-rad 100.0)
+;; "width of the modified region"; the paper uses this term, and
+;; loosely, it is a scale factor for the ramp.  Larger values mean
+;; that boundaries have influence over a larger area, and smaller
+;; values have this influence over a smaller area (which makes for
+;; correspondingly faster velocities in this region).
+(def d0 200.0)
+
 (defn update-state [state]
   (let [w (q/width)
         h (q/height)
-        ;; Overall multiplier for velocity of particle:
-        vf 0.1
-        ;; Radius for mouse-thingy:
-        rad 20.0
-        ;; Radius for rounded corners:
-        rect-rad 100.0
-        margin 0
         mx (q/mouse-x)
         my (q/mouse-y)
-        ;; "width of the modified region":
-        d0 200.0
         ;; distance of point to a circle of radius 'rad'
         ;; centered at mouse cursor:
         d-mouse #(if (q/mouse-pressed?)
-                   (- (dist (- mx %1) (- my %2)) rad)
+                   (- (magn (- mx %1) (- my %2)) mouse-rad)
                    1e6)
         ;; function for distance to the border:
         d-border #(- rect-rad
-                     (sdf-box (- %1 rect-rad) ; x
-                              (- %2 rect-rad) ; y
+                     (sdf-box (- %1 rect-rad)      ; x
+                              (- %2 rect-rad)      ; y
                               (- w (* rect-rad 2)) ; width
                               (- h (* rect-rad 2)) ; height
                               ))
@@ -134,47 +150,48 @@
         ;;             ))
         mouse-drift #(if (or (< mx 0) (< my 0) (> mx w) (> my h))
                        0.0
-                       (+ 
-                        (* (- (/ mx w) 0.5) %2 20)
-                        (* (- (/ my h) 0.5) %1 -20)))
+                       (+ (* (- (/ mx w) 0.5) %2 mouse-strength)
+                          (* (- (/ my h) 0.5) %1 (- mouse-strength))))
         ;; Noise function - must take 3 arguments, (x,y,z):
         n-fn #(+ (mouse-drift %1 %2) (potential %1 %2 %3))
         ;; Overall amplitude function:
         p-fn #(* vf (amp-fn %1 %2) (n-fn %1 %2 %3))
-        points
-        (map (fn [pt]
-               (let [[x y] pt
-                     z (/ (:frame state) 2.0)
-                     border (if (and (and (> x margin) (< x (- w margin)))
-                                     (and (> y margin) (< x (- h margin))))
-                              1.0 0.0)
-
-                     f #(* vf
-                           (+ (mouse-drift %1 %2)
-                              (* (potential %1 %2 %3)
-                                 (amp-fn %1 %2))))
-                     [gx gy] (gradient f x y z)
-                     
-                     ;; Update points (move perpendicular to gradient):
-                     x2 (+ x gy)
-                     y2 (- y gx)
-                     [x3 y3] (if (or (< x2 0) (> x2 w) (< y2 0) (> y2 h))
-                               [(q/random w) (q/random h)]
-                               [x2 y2])
-                     ;; This boundary behavior is a little more
-                     ;; interesting: when a particle leaves the edges,
-                     ;; it just reappears in a random place.
-                     [x4 y4] (if (and (q/mouse-pressed?) (< (dist (- mx x) (- my y)) rad))
-                               [(q/random w) (q/random h)]
-                               [x3 y3])
-                     ]
-                 
-                 [x4 y4]
-                 )) (:grid state))]
+        ;; Time-value for potential function:
+        t (/ (:frame state) 2.0)
+        ;; The potential function (modified by a few things):
+        f #(* vf (+ (mouse-drift %1 %2)
+                    (* (potential %1 %2 %3)
+                       (amp-fn %1 %2))))
+        ;; Finally, update each point position:
+        points (map
+                (fn [pt]
+                  (let [[x y] pt
+                        [gx gy] (gradient f x y t)
+                        
+                        ;; Update points (perpendicular to gradient):
+                        x2 (+ x gy)
+                        y2 (- y gx)
+                        ;; A particle that leaves the screen
+                        ;; 'resurrects' in a random place, which is a
+                        ;; little more interesting than having a
+                        ;; boundary all around:
+                        [x3 y3] (if (or (< x2 0) (> x2 w) (< y2 0) (> y2 h))
+                                  [(q/random w) (q/random h)]
+                                  [x2 y2])
+                        ;; When mouse is pressed, particles inside the
+                        ;; configured radius are likewise resurrected:
+                        [x4 y4] (if (and (q/mouse-pressed?)
+                                         (< (magn (- mx x) (- my y)) mouse-rad))
+                                  [(q/random w) (q/random h)]
+                                  [x3 y3])
+                        ]
+                    [x4 y4])) (:grid state))]
     (-> state
         (update :frame inc)
         (assoc :grid points))))
 
+;; Turn to true to enable kludgey visualization of the potential
+;; field's isocontours:
 (def show-fn false)
 
 (defn grid [nx ny]
@@ -187,6 +204,8 @@
    (range nx)))
 
 (defn draw-field [offset sdf domain-xform]
+  "Kludgey experimental method to draw out isocontours of the
+  potential field"
   (let [pix (q/pixels)
         w   (q/width)
         h   (q/height)
