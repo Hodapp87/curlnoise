@@ -21,7 +21,7 @@ Uncomment the `(run-sketch)` and the below should work:
 ## Demo
 
 See
-[here](https://cdn.jsdelivr.net/gh/hodapp87/curlnoise@master/resources/public/index.html)
+[here](http://htmlpreview.github.io/?https://github.com/Hodapp87/curlnoise/blob/master/resources/public/index.html)
 to run the ClojureScript version in the browser.
 
 ## TODO
