@@ -31,13 +31,9 @@ to run the ClojureScript version in the browser.
 
 - Better docs.
 - Make things more interactive, e.g. let the user place obstacles.
-- Factor out the potential function rather than burying it in
-  `update-state`.
 - Visualize amplitude function & potential function.  I have
   `draw-field` which `show-fn` enables, but it is rudimentary.
-- Figure out reasonable boundary behavior.  I'd like to do toroidal,
-  but I would need to gradually blend the potential function at the
-  edges for this to work right (otherwise particles are just stuck at
-  the boundaries due to the discontinuity).
 - Use 'real' simplex or OpenSimplex noise implementation that has a
-  gradient instead of doing it numerically?
+  gradient instead of doing it numerically.
+- Add multi-octave noise and look into what the paper says about
+  turbulence.  (Look up 'advection' technique it mentions too.)
