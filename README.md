@@ -18,6 +18,9 @@ Uncomment the `(run-sketch)` and the below should work:
 - Emacs - run cider, open `core.clj` and press `C-c C-k` to evaluate the file.
 - REPL - run `(require 'quil_perlin.core)`.
 
+`lein cljsbuild once optimized` for minified/optimized code.  This
+might be obvious to experienced lein users, but not to me.
+
 ## Demo
 
 See

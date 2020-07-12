@@ -5,8 +5,8 @@
 (def framerate 60)
 (def res-x 500)
 (def res-y res-x)
-;; Lower grid size produces more points
-(def grid-size 10)
+;; Number of particles to use:
+(def particles 2000)
 ;; Lower alpha produces *longer* particle trails
 (def alpha 40)
 
@@ -14,37 +14,6 @@
                  :cljs :p2d))
 ;; TODO: I still must add xorg.libXxf86vm and prepend to 'lein run':
 ;; LD_LIBRARY_PATH=/nix/store/695kqk35hndbcn2p6crcd8062p13j2a6-libXxf86vm-1.1.4/lib
-
-;; Return sequence of [x y], with 
-(defn grid [nx ny]
-  "Returns lazy sequence of [x y], with x ranging in [0,nx) and y in [0,ny).
-
-  That is, the resultant sequence has nx*ny elements and goes through every
-  value of x and y in that range, varying y first and then x."
-  (mapcat
-   (fn [x] (map (fn [y] [x y]) (range ny)))
-   (range nx)))
-
-(defn pix-grid [grid-size res-x res-y]
-  "Returns both grid indices and screen coordinates.
-
-  grid-size is the desired size of a grid square in pixels.
-  res-x and res-y are resolutions in X & Y (likewise in pixels).
-
-  More specifically, this returns a lazy sequence of [x y px py] for
-  which x & y are grid indices, and px & py are the corresponding
-  *center* point of that grid square.
-
-  x and y still are grid indices, but px and py are screen coordinates
-  for the *center* of the respective grid square.
-  "
-  (let [nx (int (/ res-x grid-size))
-        ny (int (/ res-y grid-size))
-        offset (int (/ grid-size 2))
-        x2pix #(+ offset (q/map-range % 0 nx 0 res-x))
-        y2pix #(+ offset (q/map-range % 0 ny 0 res-y))
-        ]
-    (map (fn [[i j]] [i j (x2pix i) (y2pix j)]) (grid nx ny))))
 
 (defn ramp [r]
   "Ramp function suggested in 'Curl-Noise for Procedural Fluid-Flow'"
@@ -75,7 +44,8 @@
     (q/with-graphics gr
       (q/background 255 alpha))
     {:frame 0
-     :grid (pix-grid grid-size res-x res-y)
+     :grid (mapv (fn [_] (vec [(q/random (q/width)) (q/random (q/height))]))
+                 (range particles))
      :blend gr}))
 
 (defn sdf-box [px py bx by]
@@ -92,7 +62,7 @@
         ;; Overall multiplier for velocity of particle:
         vf 0.1
         ;; Domain scale for noise function:
-        scale 400.0
+        scale 500.0
         ;; Amplitude multiplier for noise:
         noise-scale (* scale 10.0)
         ;; Radius for mouse-thingy:
@@ -138,8 +108,8 @@
         p-fn #(* vf (amp-fn %1 %2) (n-fn %1 %2 %3))
         points
         (map (fn [pt]
-               (let [[i j x y] pt
-                     z (/ (:frame state) 20.0)
+               (let [[x y] pt
+                     z (/ (:frame state) 2.0)
                      border (if (and (and (> x margin) (< x (- w margin)))
                                      (and (> y margin) (< x (- h margin))))
                               1.0 0.0)
@@ -161,13 +131,22 @@
                      ;; it just reappears in a random place.
                      ]
                  
-                 [i j x3 y3]
+                 [x3 y3]
                  )) (:grid state))]
     (-> state
         (update :frame inc)
         (assoc :grid points))))
 
 (def show-fn false)
+
+(defn grid [nx ny]
+  "Returns lazy sequence of [x y], with x ranging in [0,nx) and y in [0,ny).
+
+  That is, the resultant sequence has nx*ny elements and goes through every
+  value of x and y in that range, varying y first and then x."
+  (mapcat
+   (fn [x] (map (fn [y] [x y]) (range ny)))
+   (range nx)))
 
 (defn draw-field [offset sdf domain-xform]
   (let [pix (q/pixels)
@@ -214,7 +193,7 @@
               (- (- %2 rad) 0.0)])
        )
       (doseq [point (:grid state)]
-        (let [[_ _ px py] point
+        (let [[px py] point
               ix (clamp (int px) 0 (- w 1))
               iy (clamp (int py) 0 (- h 1))]
           #?(:clj  (aset-int pix (+ ix (* iy w)) color)
