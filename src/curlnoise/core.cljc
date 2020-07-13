@@ -47,6 +47,9 @@
     (q/with-graphics gr
       (q/background 255 alpha))
     {:frame 0
+     :pressed? false
+     :mouse-x 0
+     :mouse-y 0
      :grid (mapv (fn [_] (vec [(q/random (q/width)) (q/random (q/height))]))
                  (range particles))
      :blend gr}))
@@ -131,9 +134,10 @@
         h (q/height)
         mx (q/mouse-x)
         my (q/mouse-y)
+        pressed? (q/mouse-pressed?)
         ;; distance of point to a circle of radius 'rad'
         ;; centered at mouse cursor:
-        d-mouse #(if (q/mouse-pressed?)
+        d-mouse #(if pressed?
                    (- (magn (- mx %1) (- my %2)) mouse-rad)
                    1e6)
         ;; function for distance to the border:
@@ -180,7 +184,7 @@
                                   [x2 y2])
                         ;; When mouse is pressed, particles inside the
                         ;; configured radius are likewise resurrected:
-                        [x4 y4] (if (and (q/mouse-pressed?)
+                        [x4 y4] (if (and pressed?
                                          (< (magn (- mx x) (- my y)) mouse-rad))
                                   [(q/random w) (q/random h)]
                                   [x3 y3])
@@ -188,6 +192,9 @@
                     [x4 y4])) (:grid state))]
     (-> state
         (update :frame inc)
+        (assoc :pressed? pressed?)
+        (assoc :mouse-x mx)
+        (assoc :mouse-y my)
         (assoc :grid points))))
 
 ;; Turn to true to enable kludgey visualization of the potential
@@ -255,12 +262,16 @@
               iy (clamp (int py) 0 (- h 1))]
           #?(:clj  (aset-int pix (+ ix (* iy w)) color)
              :cljs (let [offset (* 4 (+ ix (* iy w)))]
-                     (aset pix offset 0) ;; R
-                     (aset pix (+ offset 1) 0) ;; G
-                     (aset pix (+ offset 2) 0) ;; B
+                     (aset pix offset 0)        ;; R
+                     (aset pix (+ offset 1) 0)  ;; G
+                     (aset pix (+ offset 2) 0)  ;; B
                      (aset pix (+ offset 3) 255) ;; alpha
                      )))))
-    (q/update-pixels)))
+    (q/update-pixels)
+    (if (:pressed? state)
+      (let [r (int mouse-rad)]
+        (q/fill 0 255)
+        (q/ellipse (:mouse-x state) (:mouse-y state) r r)))))
 
 (defn settings []
   ;; https://github.com/quil/quil/issues/299
