@@ -38,4 +38,8 @@ to run the ClojureScript version in the browser.
   too](http://www-evasion.imag.fr/Publications/2001/PN01/).)
 - Use 'real' simplex or OpenSimplex noise implementation that has a
   gradient instead of doing it numerically.  (If I understand Perlin &
-  Neyret's pseudo-advection right, it might also simplify that.)
+  Neyret's pseudo-advection right, it might also simplify that. Also,
+  note that Stefan Gustavson's
+  [implementation](http://webstaff.itn.liu.se/~stegu/aqsis/flownoisedemo/)
+  includes a parameter to rotate these gradients for this
+  pseudo-advection - see `srdnoise23.c.`)
