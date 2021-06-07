@@ -13,32 +13,40 @@ from vispy.scene import visuals
 
 import opensimplex
 
-def gradient(fn, eps=1e-3):
-    eps_inv = 1.0 / eps
-    # Numerical gradient by finite differences
-    def _grad(x, y, z):
-        p    = fn(x,     y,     z)
-        p_dx = fn(x+eps, y,     z)
-        p_dy = fn(x,     y+eps, z)
-        p_dz = fn(x,     y,     z+eps)
-        return (p_dx - p)*eps_inv, (p_dy - p)*eps_inv, (p_dz - p)*eps_inv
-    return _grad
+def curl_3d(grads: np.array) -> np.array:
+    """Computes curl from an array of gradients.
 
-def curl_3d(grads):
-    # 'grads' should be of shape (..., 3, 3).  Each 3x3 matrix should
-    # be the Jacobian of the potential.
+    'grads' should have shape (N1, N2, ..., 3, 3). Each 3x3 matrix in
+    should be the Jacobian of the function at some point.
+
+    Each output vector is the (x,y,z) coordinates of the curl at that
+    corresponding point.
+
+    Parameters:
+    grads -- numpy array of gradients, shape (..., 3, 3)
+
+    Returns:
+    numpy array of shape (..., 3) containing curl vectors
+    """
     cx = grads[..., 2, 1] - grads[..., 1, 2]
     cy = grads[..., 0, 2] - grads[..., 2, 0]
     cz = grads[..., 1, 0] - grads[..., 0, 1]
     return np.stack((cx, cy, cz), axis=-1)
 
+# TODO: Make VectorField class that defines grad and curl?
+
 class Potential(object):
+    """Represents a potential function for a vector field."""
     def __init__(self):
         self.x_spx = opensimplex.OpenSimplex(seed=0)
         self.y_spx = opensimplex.OpenSimplex(seed=12345)
         self.z_spx = opensimplex.OpenSimplex(seed=45678)
-    def eval(self, x, y, z):
-        y2 = y# + 0.5*math.sin(3*x) + 0.5*math.sin(2.5*z)
+    def eval(self, x: float, y: float, z: float) -> np.array:
+        """Evaluates potential function at a single point (x,y,z).
+
+        Returns a numpy array of the 3-dimensional vector.
+        """
+        y2 = y + 0.2*math.sin(1*x) + 0.2*math.sin(1.25*z)
         x2 = x
         z2 = z
         f1 = np.array([
@@ -48,13 +56,26 @@ class Potential(object):
         ])
         f2 = np.array([z*0.5, 0, 0])
         return f1# + f2
-    def grad(self, x, y, z, eps=1e-3):
-        # Returns gradients in matrix form.
-        # 
-        # Element (i, j) is gradient of i'th component with respect to
-        # j'th component, where components are (x,y,z) - i.e. row 0 is
-        # (d/dx Px, d/dy Px, d/dz Px).  I'm fairly sure this is just
-        # the Jacobian.
+    def grad(self, x: float, y: float, z: float, eps: float=1e-3) -> np.array:
+        """Returns an array with this potential function's gradients.
+
+        Like eval() this works only at a single point.  The gradients
+        are computed numerically using finite differences
+
+        In the returned array, element (i, j) is gradient of i'th
+        component with respect to j'th component, where components are
+        (X,Y,Z) - i.e. row 0 is (d/dx P_x, d/dy P_x, d/dz P_x).  This
+        should be equivalent to the Jacobian evaluated at (x, y, z).
+
+        Parameters:
+        x -- X coordinate
+        y -- Y coordinate
+        z -- Z coordinate
+        eps -- Optional delta to compute numerical gradient (default 1e-3)
+
+        Returns:
+        (3,3) numpy array containing gradients at (x,y,z)
+        """
         p    = self.eval(x,     y,     z)
         p_dx = self.eval(x+eps, y,     z)
         p_dy = self.eval(x,     y+eps, z)
