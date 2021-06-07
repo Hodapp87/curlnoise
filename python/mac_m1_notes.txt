@@ -1,0 +1,5 @@
+How I coaxed this into working on ARM64 & Apple Silicon:
+- Yes, you need Rosetta.
+- Install Conda.
+- Run:
+  conda install -c conda-force python=3.9 vispy pytest pyqt
