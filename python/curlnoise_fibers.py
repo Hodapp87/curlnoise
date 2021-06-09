@@ -13,49 +13,13 @@ from vispy.scene import visuals
 
 import opensimplex
 
-def curl_3d(grads: np.array) -> np.array:
-    """Computes curl from an array of gradients.
-
-    'grads' should have shape (N1, N2, ..., 3, 3). Each 3x3 matrix in
-    should be the Jacobian of the function at some point.
-
-    Each output vector is the (x,y,z) coordinates of the curl at that
-    corresponding point.
-
-    Parameters:
-    grads -- numpy array of gradients, shape (..., 3, 3)
-
-    Returns:
-    numpy array of shape (..., 3) containing curl vectors
-    """
-    cx = grads[..., 2, 1] - grads[..., 1, 2]
-    cy = grads[..., 0, 2] - grads[..., 2, 0]
-    cz = grads[..., 1, 0] - grads[..., 0, 1]
-    return np.stack((cx, cy, cz), axis=-1)
-
-# TODO: Make VectorField class that defines grad and curl?
-
-class Potential(object):
-    """Represents a potential function for a vector field."""
-    def __init__(self):
-        self.x_spx = opensimplex.OpenSimplex(seed=0)
-        self.y_spx = opensimplex.OpenSimplex(seed=12345)
-        self.z_spx = opensimplex.OpenSimplex(seed=45678)
+class VectorField(object):
     def eval(self, x: float, y: float, z: float) -> np.array:
         """Evaluates potential function at a single point (x,y,z).
 
         Returns a numpy array of the 3-dimensional vector.
         """
-        y2 = y + 0.2*math.sin(1*x) + 0.2*math.sin(1.25*z)
-        x2 = x
-        z2 = z
-        f1 = np.array([
-            self.x_spx.noise3d(x2, y2, z2),
-            self.y_spx.noise3d(x2, y2, z2),
-            self.z_spx.noise3d(x2, y2, z2),
-        ])
-        f2 = np.array([z*0.5, 0, 0])
-        return f1# + f2
+        raise Exception("Not implemented")
     def grad(self, x: float, y: float, z: float, eps: float=1e-3) -> np.array:
         """Returns an array with this potential function's gradients.
 
@@ -81,18 +45,84 @@ class Potential(object):
         p_dy = self.eval(x,     y+eps, z)
         p_dz = self.eval(x,     y,     z+eps)
         return (np.stack((p_dx, p_dy, p_dz)) - p).T / eps
+    @staticmethod
+    def curl_3d(grads: np.array) -> np.array:
+        """Computes curl from an array of gradients.
+
+        'grads' should have shape (N1, N2, ..., 3, 3). Each 3x3 matrix in
+        should be the Jacobian of the function at some point.
+
+        Each output vector is the (x,y,z) coordinates of the curl at that
+        corresponding point.
+
+        Parameters:
+        grads -- numpy array of gradients, shape (..., 3, 3)
+
+        Returns:
+        numpy array of shape (..., 3) containing curl vectors
+        """
+        cx = grads[..., 2, 1] - grads[..., 1, 2]
+        cy = grads[..., 0, 2] - grads[..., 2, 0]
+        cz = grads[..., 1, 0] - grads[..., 0, 1]
+        return np.stack((cx, cy, cz), axis=-1)
+
+class SimplexPotential(VectorField):
+    """Represents a potential function for a vector field."""
+    def __init__(self):
+        self.x_spx = opensimplex.OpenSimplex(seed=0)
+        self.y_spx = opensimplex.OpenSimplex(seed=12345)
+        self.z_spx = opensimplex.OpenSimplex(seed=45678)
+    def eval(self, x: float, y: float, z: float) -> np.array:
+        y2 = y + 0.1*math.sin(1*x) + 0.1*math.sin(1.25*z)
+        x2 = x
+        z2 = z
+        f1 = np.array([
+            self.x_spx.noise3d(x2, y2, z2),
+            self.y_spx.noise3d(x2, y2, z2),
+            self.z_spx.noise3d(x2, y2, z2),
+        ])
+        f2 = np.array([z*0.5, 0, 0])
+        return f1 + f2
+
+class TentacleWtf(VectorField):
+    def eval(self, x: float, y: float, z: float) -> np.array:
+        x2 = x + 0.05*math.sin(4*y) + 0.2*math.sin(4.25*z)
+        y2 = y
+        z2 = 0
+        f = 1.0
+        x3 = x2*math.cos(f*y2) - z2*math.sin(f*y2)
+        z3 = x2*math.sin(f*y2) + z2*math.cos(f*y2)
+        y3 = y2
+        f1 = np.array([
+            x3, y3, z3,
+        ])
+        return f1
+
+class KindaTwist(VectorField):
+    def eval(self, x: float, y: float, z: float) -> np.array:
+        f = 2.0
+        x2 = x*math.cos(f*y) - z*math.sin(f*y)
+        z2 = x*math.sin(f*y) + z*math.cos(f*y)
+        y2 = 0
+        x3 = 0.5*z2
+        y3 = y2
+        z3 = 0
+        f1 = np.array([
+            x3, y3, z3,
+        ])
+        return f1
 
 def generate(grid):
-    p = Potential()
+    p = KindaTwist()
     grads = np.array([p.grad(*pt) for pt in grid])
-    curl = curl_3d(grads)
+    curl = p.curl_3d(grads)
     return curl
 
 class Data(object):
     def __init__(self, view):
         self.use_tubes = False
         self.view = view
-        s = 0.1
+        s = 0.15
         self.s = s
         count = 8
         xs = zs = np.linspace(-s, s, count)
