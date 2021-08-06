@@ -9,3 +9,6 @@ pom.xml.asc
 /.nrepl-port
 *~
 */__pycache__
+clojure/.rebel_readline_history
+clojure/resources/public/js/*
+clojure/target/*

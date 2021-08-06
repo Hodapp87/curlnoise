@@ -40,6 +40,7 @@ class VectorField(object):
         Returns:
         (3,3) numpy array containing gradients at (x,y,z)
         """
+        # TODO: Why am I not using automatic differentiation here?
         p    = self.eval(x,     y,     z)
         p_dx = self.eval(x+eps, y,     z)
         p_dy = self.eval(x,     y+eps, z)
@@ -69,9 +70,9 @@ class VectorField(object):
 class SimplexPotential(VectorField):
     """Represents a potential function for a vector field."""
     def __init__(self):
-        self.x_spx = opensimplex.OpenSimplex(seed=0)
-        self.y_spx = opensimplex.OpenSimplex(seed=12345)
-        self.z_spx = opensimplex.OpenSimplex(seed=45678)
+        self.x_spx = opensimplex.OpenSimplex(seed=1)
+        self.y_spx = opensimplex.OpenSimplex(seed=12346)
+        self.z_spx = opensimplex.OpenSimplex(seed=45679)
     def eval(self, x: float, y: float, z: float) -> np.array:
         y2 = y + 0.1*math.sin(1*x) + 0.1*math.sin(1.25*z)
         x2 = x
@@ -100,12 +101,12 @@ class TentacleWtf(VectorField):
 
 class KindaTwist(VectorField):
     def eval(self, x: float, y: float, z: float) -> np.array:
-        f = 2.0
-        x2 = x*math.cos(f*y) - z*math.sin(f*y)
-        z2 = x*math.sin(f*y) + z*math.cos(f*y)
-        y2 = 0
-        x3 = 0.5*z2
-        y3 = y2
+        f = 0.0
+        #x2 = x*math.cos(f*y) - z*math.sin(f*y)
+        #z2 = x*math.sin(f*y) + z*math.cos(f*y)
+        #y2 = 0
+        x3 = z
+        y3 = y
         z3 = 0
         f1 = np.array([
             x3, y3, z3,
@@ -114,9 +115,18 @@ class KindaTwist(VectorField):
 
 def generate(grid):
     p = KindaTwist()
+    #p = SimplexPotential()
     grads = np.array([p.grad(*pt) for pt in grid])
     curl = p.curl_3d(grads)
     return curl
+
+def twist_xform(pts):
+    f = 0.3
+    x, y, z = pts[..., 0], pts[..., 1], pts[..., 2]
+    x2 = x*np.cos(f*y) - z*np.sin(f*y)
+    z2 = x*np.sin(f*y) + z*np.cos(f*y)
+    y2 = y
+    return np.stack((x2, y2, z2), axis=-1)
 
 class Data(object):
     def __init__(self, view):
@@ -147,6 +157,7 @@ class Data(object):
                 p = p2
                 points.append(p)
             points = np.stack(points, axis=1) / s
+            points = twist_xform(points)
             # points = (count*count, N, 3) where first dimension chooses which
             # trajectory, and second dimension proceeds along time/iterations
             # of that trajectory.
@@ -160,7 +171,6 @@ class Data(object):
         t = 0 if ev is None else ev.elapsed
         # Get velocity for current points:
         curl = generate(self.points)
-        # 
         a1 = self.points
         a2 = self.points + curl*0.1*self.s
         lines = np.hstack((a1, a2)).reshape(self.points.shape[0]*2, -1) / self.s
